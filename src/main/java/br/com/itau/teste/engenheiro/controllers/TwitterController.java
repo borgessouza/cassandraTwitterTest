@@ -1,76 +1,98 @@
 package br.com.itau.teste.engenheiro.controllers;
 
-import com.google.common.collect.Lists;
-import com.twitter.hbc.ClientBuilder;
+import br.com.itau.teste.engenheiro.VO.TwitterPostsByDateVO;
+import br.com.itau.teste.engenheiro.VO.TwitterPostsByLangVO;
+import br.com.itau.teste.engenheiro.VO.TwitterUsersVO;
+import br.com.itau.teste.engenheiro.model.TwitterPostByDate;
+import br.com.itau.teste.engenheiro.model.TwitterUsersByFollowers;
+import br.com.itau.teste.engenheiro.services.TwitterCassandraService;
+import br.com.itau.teste.engenheiro.services.TwitterProdutoService;
+import br.com.itau.teste.engenheiro.util.JsonUtils;
+import br.com.itau.teste.engenheiro.util.TwitterHBC;
 import com.twitter.hbc.core.Client;
-import com.twitter.hbc.core.Constants;
-import com.twitter.hbc.core.Hosts;
-import com.twitter.hbc.core.HttpHosts;
-import com.twitter.hbc.core.endpoint.StatusesFilterEndpoint;
-import com.twitter.hbc.core.event.Event;
-import com.twitter.hbc.core.processor.StringDelimitedProcessor;
-import com.twitter.hbc.httpclient.auth.Authentication;
-import com.twitter.hbc.httpclient.auth.OAuth1;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.Map;
 
 @RestController
 @RequestMapping("twitter/")
 public class TwitterController {
 
-    @GetMapping("tag")
-    public String getTwitter() {
+    private static final int tagSize = 100;
 
-        /** Set up your blocking queues: Be sure to size these properly based on expected TPS of your stream */
-        BlockingQueue<String> msgQueue = new LinkedBlockingQueue<String>(100000);
-        BlockingQueue<Event> eventQueue = new LinkedBlockingQueue<Event>(1000);
-
-        /** Declare the host you want to connect to, the endpoint, and authentication (basic auth or oauth) */
-        Hosts hosebirdHosts = new HttpHosts(Constants.STREAM_HOST);
-        StatusesFilterEndpoint hosebirdEndpoint = new StatusesFilterEndpoint();
-
-        // Optional: set up some followings and track terms
-        //List<Long> followings = Lists.newArrayList(1234L, 566788L);
-        List<String> terms = Lists.newArrayList("Neymar");
-        //hosebirdEndpoint.followings(followings);
-        hosebirdEndpoint.trackTerms(terms);
-
-        // These secrets should be read from a config file
-        Authentication hosebirdAuth = new OAuth1("", "",
-                "-", "");
+    @Autowired
+    private TwitterHBC twitterHBC;
+    @Autowired
+    private TwitterProdutoService twitterProdutoService;
+    @Autowired
+    private TwitterCassandraService twitterCassandraService;
+    @Autowired
+    private JsonUtils jsonUtils;
 
 
-        ClientBuilder builder = new ClientBuilder()
-                .name("Hosebird-Client-01")                              // optional: mainly for the logs
-                .hosts(hosebirdHosts)
-                .authentication(hosebirdAuth)
-                .endpoint(hosebirdEndpoint)
-                .processor(new StringDelimitedProcessor(msgQueue));
+    @GetMapping("tagSearch/{tag}")
+    public ResponseEntity getTwitter(@PathVariable("tag") String tagSearch) {
+        System.out.println(String.format("Looking for %s", tagSearch));
 
-        Client hosebirdClient = builder.build();
-        // Attempts to establish a connection.
-        hosebirdClient.connect();
+        Map<String, Object> tagsObject = new HashMap<String, Object>();
+        List<Map> listOfTwitters = new ArrayList<>();
 
-        try {
-            // on a different thread, or multiple different threads....
-            while (!hosebirdClient.isDone()) {
-                String msg = null;
-
-                msg = msgQueue.take();
-                System.out.println(msg);
-            }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        Client client = twitterHBC.build(tagSearch);
+        client.connect();
+        while (!client.isDone()) {
+            if (listOfTwitters.size() >= tagSize) break;
+            listOfTwitters.add(jsonUtils.fromJsonToMap(twitterHBC.getTwitter()));
         }
+        client.stop();
 
-        hosebirdClient.stop();
-
-        return "Ola";
+        System.out.println("Finalizado Twitter");
+        System.out.println("Inserrindo Cassandra");
+        System.out.println(listOfTwitters.size());
+        twitterProdutoService.inserirTwitterPosts(listOfTwitters, tagSearch);
+        System.out.println("Finalizando");
+        return new ResponseEntity(HttpStatus.OK);
     }
+
+    @GetMapping("carregar")
+    public ResponseEntity carregarCassandra() {
+        twitterCassandraService.carregarCassandra();
+        return new ResponseEntity(HttpStatus.OK);
+    }
+
+
+    @GetMapping(value = "user/tag", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+    public ResponseEntity<List<TwitterUsersVO>> pegarUsuariosPorTags(@RequestParam(name = "q", required = false) String tagSearch) {
+        Iterable<TwitterUsersByFollowers> twitterUsers = twitterProdutoService.pegarUserTwitter(tagSearch);
+        List<TwitterUsersVO> listaUserVO = new ArrayList<>();
+        for (TwitterUsersByFollowers user : twitterUsers) {
+            listaUserVO.add(new TwitterUsersVO(user.getName(), user.getFollowersCount()));
+        }
+        return new ResponseEntity(listaUserVO, HttpStatus.OK);
+    }
+
+
+    @GetMapping(value = "lang/pt", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+    public ResponseEntity<List<TwitterPostsByLangVO>> pegarPostsPorIdioma(@RequestParam(name = "q", required = false) String lang) {
+        List<TwitterPostsByLangVO> twittersLangsVO = new ArrayList<>();
+        twitterProdutoService.pegarPostByLang("pt");
+
+        return new ResponseEntity(twittersLangsVO, HttpStatus.OK);
+    }
+
+    @GetMapping(value = "data", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+    public ResponseEntity<List<TwitterPostsByDateVO>> pegarPostsPorData() {
+        List<TwitterPostByDate> twittersDateVO = new ArrayList<>();
+
+
+        return new ResponseEntity(twittersDateVO, HttpStatus.OK);
+    }
+
 
 }
