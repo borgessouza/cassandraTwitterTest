@@ -8,21 +8,33 @@ import java.util.Date;
 import java.util.UUID;
 
 @Table("twitter_posts_by_date")
-public class TwitterPostByDate implements Serializable {
+public class TwitterPostByData implements Serializable {
 
     @PrimaryKey
     private UUID id;
     private String tagName;
+    private String text;
     private Date created;
+    private Integer dia;
+    private Integer hora;
 
-    public TwitterPostByDate() {
+    public TwitterPostByData() {
         this.id = UUID.randomUUID();
     }
 
-    public TwitterPostByDate(String tagName, Date created) {
+    public TwitterPostByData(String tagName, Date created) {
         this.id = UUID.randomUUID();
         this.tagName = tagName;
         this.created = created;
+    }
+
+    public TwitterPostByData(String tagName, Date created, Integer dia, Integer hora, String text) {
+        this.id = UUID.randomUUID();
+        this.tagName = tagName;
+        this.created = created;
+        this.hora = hora;
+        this.dia = dia;
+        this.text = text;
     }
 
     public UUID getId() {
@@ -47,5 +59,29 @@ public class TwitterPostByDate implements Serializable {
 
     public void setCreated(Date created) {
         this.created = created;
+    }
+
+    public Integer getHora() {
+        return hora;
+    }
+
+    public void setHora(Integer hora) {
+        this.hora = hora;
+    }
+
+    public Integer getDia() {
+        return dia;
+    }
+
+    public void setDia(Integer dia) {
+        this.dia = dia;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public void setText(String text) {
+        this.text = text;
     }
 }

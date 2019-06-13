@@ -1,5 +1,6 @@
 package br.com.itau.teste.engenheiro.util;
 
+import br.com.itau.teste.engenheiro.config.TwitterParametrosConfig;
 import com.twitter.hbc.ClientBuilder;
 import com.twitter.hbc.core.Client;
 import com.twitter.hbc.core.Constants;
@@ -21,10 +22,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class TwitterHBC {
 
 
-    private final String consumeKey = "";
-    private final String consumerSecret = "";
-    private final String token = "";
-    private final String tokenSecret = "";
+    private TwitterParametrosConfig config;
 
     private final Authentication authentication;
     private BlockingQueue<String> msgQueue;
@@ -34,10 +32,12 @@ public class TwitterHBC {
 
     private StatusesFilterEndpoint hosebirdEndpoint = new StatusesFilterEndpoint();
 
-    public TwitterHBC() {
+    public TwitterHBC(TwitterParametrosConfig config) {
+        this.config = config;
         msgQueue = new LinkedBlockingQueue<String>(10000);
         eventQueue = new LinkedBlockingQueue<Event>(10000);
-        authentication = new OAuth1(consumeKey, consumerSecret, token, tokenSecret);
+        authentication = new OAuth1(config.getConsumeKey(), config.getConsumerSecret(),
+                config.getToken(), config.getTokenSecret());
     }
 
     public Client build(String searchTag) {

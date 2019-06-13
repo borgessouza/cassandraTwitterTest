@@ -3,7 +3,7 @@ package br.com.itau.teste.engenheiro.services;
 import br.com.itau.teste.engenheiro.facade.TwitterCassandraFacade;
 import br.com.itau.teste.engenheiro.model.TwitterPosts;
 import br.com.itau.teste.engenheiro.repositories.TwitterPostRepository;
-import br.com.itau.teste.engenheiro.repositories.TwitterPostsByDateRepository;
+import br.com.itau.teste.engenheiro.repositories.TwitterPostsByDataRepository;
 import br.com.itau.teste.engenheiro.repositories.TwitterPostsByLangRepository;
 import br.com.itau.teste.engenheiro.repositories.TwitterUsersRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +24,7 @@ public class TwitterCassandraServiceImpl implements TwitterCassandraService {
     @Autowired
     private TwitterPostRepository twitterPostRepository;
     @Autowired
-    private TwitterPostsByDateRepository twitterPostsByDateRepository;
+    private TwitterPostsByDataRepository twitterPostsByDataRepository;
 
     @Override
     public void carregarCassandra() {
@@ -33,7 +33,7 @@ public class TwitterCassandraServiceImpl implements TwitterCassandraService {
                 twitterCassandraFacade.converterTwitterUserByFollors(listaPosts));
         twitterPostsByLangRepository.saveAll(
                 twitterCassandraFacade.convertTwitterPostByLang(listaPosts));
-        twitterPostsByDateRepository.saveAll(
+        twitterPostsByDataRepository.saveAll(
                 twitterCassandraFacade.convertTwitterPostByDate(listaPosts));
     }
 

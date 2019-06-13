@@ -3,17 +3,19 @@ package br.com.itau.teste.engenheiro.controllers;
 import br.com.itau.teste.engenheiro.VO.TwitterPostsByDateVO;
 import br.com.itau.teste.engenheiro.VO.TwitterPostsByLangVO;
 import br.com.itau.teste.engenheiro.VO.TwitterUsersVO;
-import br.com.itau.teste.engenheiro.model.TwitterPostByDate;
 import br.com.itau.teste.engenheiro.model.TwitterUsersByFollowers;
 import br.com.itau.teste.engenheiro.services.TwitterCassandraService;
 import br.com.itau.teste.engenheiro.services.TwitterProdutoService;
 import br.com.itau.teste.engenheiro.util.JsonUtils;
 import br.com.itau.teste.engenheiro.util.TwitterHBC;
 import com.twitter.hbc.core.Client;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -27,6 +29,8 @@ public class TwitterController {
 
     private static final int tagSize = 100;
 
+    private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
+
     @Autowired
     private TwitterHBC twitterHBC;
     @Autowired
@@ -38,26 +42,31 @@ public class TwitterController {
 
 
     @GetMapping("tagSearch/{tag}")
-    public ResponseEntity getTwitter(@PathVariable("tag") String tagSearch) {
-        System.out.println(String.format("Looking for %s", tagSearch));
+    public ResponseEntity<String> getTwitter(@PathVariable("tag") String tagSearch) {
+        String retorno = new String("Favor informa a tag");
 
-        Map<String, Object> tagsObject = new HashMap<String, Object>();
-        List<Map> listOfTwitters = new ArrayList<>();
+        if (tagSearch != null && StringUtils.hasText(tagSearch)) {
+            logger.info(String.format("Looking for %s", tagSearch));
 
-        Client client = twitterHBC.build(tagSearch);
-        client.connect();
-        while (!client.isDone()) {
-            if (listOfTwitters.size() >= tagSize) break;
-            listOfTwitters.add(jsonUtils.fromJsonToMap(twitterHBC.getTwitter()));
+            Map<String, Object> tagsObject = new HashMap<String, Object>();
+            List<Map> listOfTwitters = new ArrayList<>();
+
+            Client client = twitterHBC.build(tagSearch);
+            client.connect();
+            while (!client.isDone()) {
+                if (listOfTwitters.size() >= tagSize) break;
+                listOfTwitters.add(jsonUtils.fromJsonToMap(twitterHBC.getTwitter()));
+            }
+            client.stop();
+
+            logger.info("Finalizado Twitter");
+            logger.info("Inserindo Cassandra");
+            logger.info(String.valueOf(listOfTwitters.size()));
+            twitterProdutoService.inserirTwitterPosts(listOfTwitters, tagSearch);
+            logger.info("Finalizando");
+             retorno = "Carregado";
         }
-        client.stop();
-
-        System.out.println("Finalizado Twitter");
-        System.out.println("Inserrindo Cassandra");
-        System.out.println(listOfTwitters.size());
-        twitterProdutoService.inserirTwitterPosts(listOfTwitters, tagSearch);
-        System.out.println("Finalizando");
-        return new ResponseEntity(HttpStatus.OK);
+        return new ResponseEntity(retorno, HttpStatus.OK);
     }
 
     @GetMapping("carregar")
@@ -78,20 +87,14 @@ public class TwitterController {
     }
 
 
-    @GetMapping(value = "lang/pt", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
-    public ResponseEntity<List<TwitterPostsByLangVO>> pegarPostsPorIdioma(@RequestParam(name = "q", required = false) String lang) {
-        List<TwitterPostsByLangVO> twittersLangsVO = new ArrayList<>();
-        twitterProdutoService.pegarPostByLang("pt");
-
-        return new ResponseEntity(twittersLangsVO, HttpStatus.OK);
+    @GetMapping(value = "lang", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+    public ResponseEntity<List<TwitterPostsByLangVO>> pegarPostsPorIdioma(@RequestParam(name = "q", required = false, defaultValue = "pt") String lang) {
+        return new ResponseEntity(twitterProdutoService.pegarPostByLang(lang), HttpStatus.OK);
     }
 
     @GetMapping(value = "data", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     public ResponseEntity<List<TwitterPostsByDateVO>> pegarPostsPorData() {
-        List<TwitterPostByDate> twittersDateVO = new ArrayList<>();
-
-
-        return new ResponseEntity(twittersDateVO, HttpStatus.OK);
+        return new ResponseEntity(twitterProdutoService.pegarPostByData(), HttpStatus.OK);
     }
 
 
